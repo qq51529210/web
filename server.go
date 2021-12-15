@@ -4,8 +4,6 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
-
-	"github.com/qq51529210/web/router"
 )
 
 type Server interface {
@@ -14,10 +12,10 @@ type Server interface {
 	ServeTLSWithKeyPair(certPEM, keyPEM []byte) error
 }
 
-func NewServer(addr string, router router.Router) Server {
+func NewServer(addr string, handler http.Handler) Server {
 	s := new(server)
 	s.Server.Addr = addr
-	s.Server.Handler = router
+	s.Server.Handler = handler
 	return s
 }
 
