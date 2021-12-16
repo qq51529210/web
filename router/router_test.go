@@ -3,8 +3,10 @@ package router
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"testing"
 )
 
@@ -68,6 +70,37 @@ func Test_Router(t *testing.T) {
 		t.Fatal(err)
 	}
 	root.ServeHTTP(handler, request)
+}
+
+func Test_Router_Static(t *testing.T) {
+	root := NewRoot()
+	root.NotFound(func(ctx *Context) {
+		t.FailNow()
+	})
+	handler := new(testHandler)
+	request := new(http.Request)
+	request.URL = new(url.URL)
+	request.Method = http.MethodGet
+	err := root.Static(http.MethodGet, "/static", ".", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fis, err := ioutil.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < len(fis); i++ {
+		request.URL.Path = fmt.Sprintf("/static/%s", fis[i].Name())
+		handler.Reset()
+		root.ServeHTTP(handler, request)
+		data, err := ioutil.ReadFile(filepath.Join(".", fis[i].Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(data, handler.buffer.Bytes()) {
+			t.FailNow()
+		}
+	}
 }
 
 func Benchmark_Router_Match_Static(b *testing.B) {

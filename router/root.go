@@ -147,6 +147,20 @@ func (r *router) Static(method, routePath, file string, cache bool) error {
 	switch strings.ToUpper(method) {
 	case http.MethodGet:
 		root = r.root[_METHOD_GET]
+	case http.MethodHead:
+		root = r.root[_METHOD_HEAD]
+	case http.MethodPost:
+		root = r.root[_METHOD_POST]
+	case http.MethodPut:
+		root = r.root[_METHOD_PUT]
+	case http.MethodPatch:
+		root = r.root[_METHOD_PATCH]
+	case http.MethodDelete:
+		root = r.root[_METHOD_DELETE]
+	case http.MethodConnect:
+		root = r.root[_METHOD_CONNECT]
+	case http.MethodOptions:
+		root = r.root[_METHOD_OPTIONS]
 	default:
 		return fmt.Errorf("invalid method %s", method)
 	}
@@ -191,6 +205,7 @@ func (r *router) static(root *route, routePath, file string, cache bool) error {
 				return root.Add(routePath, h.Handle)
 			}
 		}
+		return nil
 	}
 	// Is a dir
 	fis, err := ioutil.ReadDir(file)
