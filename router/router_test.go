@@ -2,6 +2,7 @@ package router
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/url"
 	"testing"
@@ -67,4 +68,48 @@ func Test_Router(t *testing.T) {
 		t.Fatal(err)
 	}
 	root.ServeHTTP(handler, request)
+}
+
+func Benchmark_Router_Match_Static(b *testing.B) {
+	// 100 route paths
+	routePathCount := 100
+	// 10 route deep
+	routePathDeep := 10
+	root := NewRoot()
+	var urls []string
+	for i := 0; i < routePathCount; i++ {
+		staticRoute := "/static"
+		paramRoute := "/param"
+		halfRoute := "/half"
+		staticUrl := "/static"
+		paramUrl := "/param"
+		halfUrl := "/half"
+		for j := 0; j < routePathDeep; j++ {
+			staticRoute += fmt.Sprintf("/static%d%d", i, j)
+			staticUrl += fmt.Sprintf("/static%d%d", i, j)
+			paramRoute += fmt.Sprintf("/:")
+			paramUrl += fmt.Sprintf("/param%d%d", i, j)
+			halfRoute += fmt.Sprintf("/static%d%d/:", i, j)
+			halfUrl += fmt.Sprintf("/static%d%d/param%d%d", i, j, i, j)
+		}
+		root.GET(staticRoute)
+		root.GET(paramRoute)
+		root.GET(halfRoute)
+		urls = append(urls, staticUrl)
+		urls = append(urls, paramUrl)
+		urls = append(urls, halfUrl)
+	}
+	//
+	h := new(testHandler)
+	r := new(http.Request)
+	r.Method = http.MethodGet
+	r.URL = new(url.URL)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < len(urls); i++ {
+		r.URL.Path = urls[i]
+		for j := 0; j < b.N; j++ {
+			root.ServeHTTP(h, r)
+		}
+	}
 }
