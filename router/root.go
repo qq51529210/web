@@ -1,7 +1,13 @@
 package router
 
 import (
+	"fmt"
+	"io/ioutil"
 	"net/http"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -30,6 +36,11 @@ type Root interface {
 	http.Handler
 	Router
 	NotFound(handle ...HandleFunc)
+	// Add static file handlers.
+	// If file is a directory, add all sub files, routePath is root route of these handlers.
+	// If file name is "index.html", add extra route "/".
+	// If cache is true, use CachaHandler, else use FileHandler.
+	Static(method, routePath, file string, cache bool) error
 }
 
 type router struct {
@@ -129,4 +140,69 @@ func (r *router) OPTIONS(routePath string, handle ...HandleFunc) error {
 
 func (r *router) TRACE(routePath string, handle ...HandleFunc) error {
 	return r.root[_METHOD_TRACE].Add(routePath, handle...)
+}
+
+func (r *router) Static(method, routePath, file string, cache bool) error {
+	var root *route
+	switch strings.ToUpper(method) {
+	case http.MethodGet:
+		root = r.root[_METHOD_GET]
+	default:
+		return fmt.Errorf("invalid method %s", method)
+	}
+	return r.static(root, routePath, file, cache)
+}
+
+func (r *router) static(root *route, routePath, file string, cache bool) error {
+	fi, err := os.Stat(file)
+	if err != nil {
+		return err
+	}
+	// Is a file
+	if !fi.IsDir() {
+		fi, err := os.Stat(file)
+		if err != nil {
+			return err
+		}
+		if !cache {
+			h := &FileHandler{file: file}
+			err = root.Add(routePath, h.Handle)
+		} else {
+			h, err := NewCacheHandlerFromFile(file)
+			if err != nil {
+				return err
+			}
+			err = root.Add(routePath, h.Handle)
+		}
+		if err != nil {
+			return err
+		}
+		//
+		if fi.Name() == "index.html" {
+			file, _ = filepath.Split(file)
+			if !cache {
+				h := &FileHandler{file: file}
+				return root.Add(routePath, h.Handle)
+			} else {
+				h, err := NewCacheHandlerFromFile(file)
+				if err != nil {
+					return err
+				}
+				return root.Add(routePath, h.Handle)
+			}
+		}
+	}
+	// Is a dir
+	fis, err := ioutil.ReadDir(file)
+	if err != nil {
+		return err
+	}
+	// Add sub
+	for i := 0; i < len(fis); i++ {
+		err = r.static(root, path.Join(routePath, fis[i].Name()), filepath.Join(file, fis[i].Name()), cache)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
