@@ -19,7 +19,7 @@ type Router interface {
 }
 
 func NewRoot() Root {
-	r := new(router)
+	r := new(rootRouter)
 	r.ctx.New = func() interface{} {
 		return new(Context)
 	}

@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"path/filepath"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 type testHandler struct {
@@ -103,37 +105,37 @@ func Test_Router_Static(t *testing.T) {
 	}
 }
 
-func Benchmark_Router_Match_Static(b *testing.B) {
-	// 100 route paths
-	routePathCount := 100
-	// 10 route deep
-	routePathDeep := 10
-	root := NewRoot()
-	var urls []string
+func benchmarkRoutePaths() ([]string, []string) {
+	var routePathCount, routePathDeep = 50, 10
+	var routes, urls []string
 	for i := 0; i < routePathCount; i++ {
-		staticRoute := "/static"
-		paramRoute := "/param"
-		halfRoute := "/half"
-		staticUrl := "/static"
-		paramUrl := "/param"
-		halfUrl := "/half"
+		staticRoute := fmt.Sprintf("/static%d", i)
+		paramRoute := fmt.Sprintf("/param%d", i)
+		halfRoute := fmt.Sprintf("/half%d", i)
+		staticUrl := staticRoute
+		paramUrl := paramRoute
+		halfUrl := halfRoute
 		for j := 0; j < routePathDeep; j++ {
-			staticRoute += fmt.Sprintf("/static%d%d", i, j)
-			staticUrl += fmt.Sprintf("/static%d%d", i, j)
-			paramRoute += fmt.Sprintf("/:")
-			paramUrl += fmt.Sprintf("/param%d%d", i, j)
-			halfRoute += fmt.Sprintf("/static%d%d/:", i, j)
-			halfUrl += fmt.Sprintf("/static%d%d/param%d%d", i, j, i, j)
+			staticRoute += fmt.Sprintf("/static%d", j)
+			staticUrl += fmt.Sprintf("/static%d", j)
+			paramRoute += fmt.Sprintf("/:param%d", j)
+			paramUrl += fmt.Sprintf("/param%d", j)
+			halfRoute += fmt.Sprintf("/static%d/:param%d", j, j)
+			halfUrl += fmt.Sprintf("/static%d/param%d", j, i)
 		}
-		root.GET(staticRoute)
-		root.GET(paramRoute)
-		root.GET(halfRoute)
+		routes = append(routes, staticRoute)
+		routes = append(routes, paramRoute)
+		routes = append(routes, halfUrl)
 		urls = append(urls, staticUrl)
 		urls = append(urls, paramUrl)
 		urls = append(urls, halfUrl)
 	}
-	//
+	return routes, urls
+}
+
+func benchmarkServeHTTP(b *testing.B, handler http.Handler, urls []string) {
 	h := new(testHandler)
+	h.header = make(http.Header)
 	r := new(http.Request)
 	r.Method = http.MethodGet
 	r.URL = new(url.URL)
@@ -142,7 +144,28 @@ func Benchmark_Router_Match_Static(b *testing.B) {
 	for i := 0; i < len(urls); i++ {
 		r.URL.Path = urls[i]
 		for j := 0; j < b.N; j++ {
-			root.ServeHTTP(h, r)
+			handler.ServeHTTP(h, r)
 		}
 	}
+}
+
+func Benchmark_My(b *testing.B) {
+	root := NewRoot()
+	routes, urls := benchmarkRoutePaths()
+	for i := 0; i < len(routes); i++ {
+		root.GET(routes[i], func(ctx *Context) {})
+	}
+	//
+	benchmarkServeHTTP(b, root, urls)
+}
+
+func Benchmark_Gin(b *testing.B) {
+	gin.SetMode(gin.ReleaseMode)
+	root := gin.New()
+	root.NoMethod(func(c *gin.Context) { b.FailNow() })
+	routes, urls := benchmarkRoutePaths()
+	for i := 0; i < len(routes); i++ {
+		root.GET(routes[i], func(c *gin.Context) {})
+	}
+	benchmarkServeHTTP(b, root, urls)
 }

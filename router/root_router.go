@@ -35,6 +35,7 @@ var (
 type Root interface {
 	http.Handler
 	Router
+	Sub(routePath string) Router
 	NotFound(handle ...HandleFunc)
 	// Add static file handlers.
 	// If file is a directory, add all sub files, routePath is root route of these handlers.
@@ -43,13 +44,13 @@ type Root interface {
 	Static(method, routePath, file string, cache bool) error
 }
 
-type router struct {
+type rootRouter struct {
 	root     [_METHOD_INVALID]*route
 	notfound []HandleFunc
 	ctx      sync.Pool
 }
 
-func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+func (r *rootRouter) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	ctx := r.ctx.Get().(*Context)
 	ctx.Request = req
 	ctx.ResponseWriter = res
@@ -94,7 +95,7 @@ func (r *router) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	r.ctx.Put(ctx)
 }
 
-func (r *router) NotFound(handle ...HandleFunc) {
+func (r *rootRouter) NotFound(handle ...HandleFunc) {
 	if len(handle) != 0 {
 		r.notfound = handle
 	} else {
@@ -102,47 +103,47 @@ func (r *router) NotFound(handle ...HandleFunc) {
 	}
 }
 
-func (r *router) Sub(routePath string) Router {
-	return &sub{path: routePath, router: r}
+func (r *rootRouter) Sub(routePath string) Router {
+	return &subRouter{path: routePath, root: r}
 }
 
-func (r *router) GET(routePath string, handle ...HandleFunc) error {
+func (r *rootRouter) GET(routePath string, handle ...HandleFunc) error {
 	return r.root[_METHOD_GET].Add(routePath, handle...)
 }
 
-func (r *router) HEAD(routePath string, handle ...HandleFunc) error {
+func (r *rootRouter) HEAD(routePath string, handle ...HandleFunc) error {
 	return r.root[_METHOD_HEAD].Add(routePath, handle...)
 }
 
-func (r *router) POST(routePath string, handle ...HandleFunc) error {
+func (r *rootRouter) POST(routePath string, handle ...HandleFunc) error {
 	return r.root[_METHOD_POST].Add(routePath, handle...)
 }
 
-func (r *router) PUT(routePath string, handle ...HandleFunc) error {
+func (r *rootRouter) PUT(routePath string, handle ...HandleFunc) error {
 	return r.root[_METHOD_PUT].Add(routePath, handle...)
 }
 
-func (r *router) PATCH(routePath string, handle ...HandleFunc) error {
+func (r *rootRouter) PATCH(routePath string, handle ...HandleFunc) error {
 	return r.root[_METHOD_PATCH].Add(routePath, handle...)
 }
 
-func (r *router) DELETE(routePath string, handle ...HandleFunc) error {
+func (r *rootRouter) DELETE(routePath string, handle ...HandleFunc) error {
 	return r.root[_METHOD_DELETE].Add(routePath, handle...)
 }
 
-func (r *router) CONNECT(routePath string, handle ...HandleFunc) error {
+func (r *rootRouter) CONNECT(routePath string, handle ...HandleFunc) error {
 	return r.root[_METHOD_CONNECT].Add(routePath, handle...)
 }
 
-func (r *router) OPTIONS(routePath string, handle ...HandleFunc) error {
+func (r *rootRouter) OPTIONS(routePath string, handle ...HandleFunc) error {
 	return r.root[_METHOD_OPTIONS].Add(routePath, handle...)
 }
 
-func (r *router) TRACE(routePath string, handle ...HandleFunc) error {
+func (r *rootRouter) TRACE(routePath string, handle ...HandleFunc) error {
 	return r.root[_METHOD_TRACE].Add(routePath, handle...)
 }
 
-func (r *router) Static(method, routePath, file string, cache bool) error {
+func (r *rootRouter) Static(method, routePath, file string, cache bool) error {
 	var root *route
 	switch strings.ToUpper(method) {
 	case http.MethodGet:
@@ -167,7 +168,7 @@ func (r *router) Static(method, routePath, file string, cache bool) error {
 	return r.static(root, routePath, file, cache)
 }
 
-func (r *router) static(root *route, routePath, file string, cache bool) error {
+func (r *rootRouter) static(root *route, routePath, file string, cache bool) error {
 	fi, err := os.Stat(file)
 	if err != nil {
 		return err
