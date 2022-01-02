@@ -65,11 +65,10 @@ func (r *rootRouter) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	ctx := r.ctx.Get().(*Context)
 	ctx.Request = req
 	ctx.ResponseWriter = res
-	ctx.Param = ctx.Param[:0]
 	ctx.Data = nil
-	ctx.handleIdx = -1
-	ctx.handleFunc = ctx.handleFunc[:0]
-	ctx.handleFunc = append(ctx.handleFunc, r.global...)
+	ctx.globalFunc = r.global
+	ctx.globalIdx = 0
+	ctx.handleIdx = 0
 	//
 	var route *route
 	if req.Method[0] == 'G' {
@@ -92,9 +91,9 @@ func (r *rootRouter) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		route = r.root[_METHOD_PATCH].Match(ctx)
 	}
 	if route == nil {
-		ctx.handleFunc = append(ctx.handleFunc, r.notfound...)
+		ctx.handleFunc = r.notfound
 	} else {
-		ctx.handleFunc = append(ctx.handleFunc, route.handleFunc...)
+		ctx.handleFunc = route.handleFunc
 	}
 	ctx.Next()
 	r.ctx.Put(ctx)

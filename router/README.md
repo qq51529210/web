@@ -5,7 +5,7 @@ A http router written in GO。
 ## Useage
 
 ```go
-root := router.NewRoot()
+root := router.NewRootRouter()
 root.Global(func (ctx *Context) {
     t := time.Now()
     ctx.Next()
@@ -14,7 +14,7 @@ root.Global(func (ctx *Context) {
 root.Static("staic", "http_static_root_dir", true)
 root.GET("login", loginHandleFunc)
 // 
-users := root.Sub("/users")
+users := root.SubRouter("/users")
 users.GET("", getUsersHandleFunc)
 users.GET("/:", getUserHandleFunc)
 users.POST("", addUsersHandleFunc)
@@ -31,50 +31,17 @@ yourServer.httpServer.Handler = root
 - /param-0-count/:parma-0-deep
 - /half-0-count/static-0-deep/:param-0-deep
 
-### UrlCount = 10 * 3, UrlDeep = 3
-
 ```golang
-goos: darwin
-goarch: amd64
-pkg: github.com/qq51529210/web/router
-Benchmark_My-4            477474              2220 ns/op               0 B/op          0 allocs/op
-Benchmark_Gin-4           391414              2562 ns/op               0 B/op          0 allocs/op
-PASS
-ok      github.com/qq51529210/web/router        2.797s
-```
-
-### UrlCount = 20 * 3, UrlDeep = 5
-
-```golang
-goos: darwin
-goarch: amd64
-pkg: github.com/qq51529210/web/router
-Benchmark_My-4            215452              5094 ns/op               0 B/op          0 allocs/op
-Benchmark_Gin-4           214322              5867 ns/op               0 B/op          0 allocs/op
-PASS
-ok      github.com/qq51529210/web/router        2.834s
-```
-
-### UrlCount = 30 * 3, UrlDeep = 7
-
-```golang
-goos: darwin
-goarch: amd64
-pkg: github.com/qq51529210/web/router
-Benchmark_My-4            134044              8996 ns/op               0 B/op          0 allocs/op
-Benchmark_Gin-4           125269              9564 ns/op               0 B/op          0 allocs/op
-PASS
-ok      github.com/qq51529210/web/router        3.021s
-```
-
-### UrlCount = 50 * 3, UrlDeep = 10
-
-```golang
-goos: darwin
-goarch: amd64
-pkg: github.com/qq51529210/web/router
-Benchmark_My-4             69570             16809 ns/op               0 B/op          0 allocs/op
-Benchmark_Gin-4            64596             17831 ns/op               0 B/op          0 allocs/op
-PASS
-ok      github.com/qq51529210/web/router        3.080s
+// UrlCount = 5 * 3, UrlDeep = 2
+Benchmark_My-4           1296975               933 ns/op               0 B/op          0 allocs/op
+Benchmark_Gin-4           927745              1102 ns/op               0 B/op          0 allocs/op
+// UrlCount = 10 * 3, UrlDeep = 3
+Benchmark_My-4            469432              2242 ns/op               0 B/op          0 allocs/op
+Benchmark_Gin-4           431293              2465 ns/op               0 B/op          0 allocs/op
+// UrlCount = 20 * 3, UrlDeep = 5
+Benchmark_My-4            223212              5332 ns/op               0 B/op          0 allocs/op
+Benchmark_Gin-4           199281              5566 ns/op               0 B/op          0 allocs/op
+// UrlCount = 30 * 3, UrlDeep = 7
+Benchmark_My-4            122394              9305 ns/op               0 B/op          0 allocs/op
+Benchmark_Gin-4           119985              9731 ns/op               0 B/op          0 allocs/op
 ```

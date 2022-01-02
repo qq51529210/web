@@ -23,6 +23,7 @@ func (r *route) Match(ctx *Context) *route {
 	if path == "" {
 		return route
 	}
+	ctx.Param = ctx.Param[:0]
 Loop:
 	for {
 		if route.paramChild != nil {

@@ -105,7 +105,7 @@ func Test_Router_Static(t *testing.T) {
 }
 
 func benchmarkRoutePaths() ([]string, []string) {
-	var routePathCount, routePathDeep = 50, 10
+	var routePathCount, routePathDeep = 5, 2
 	var routes, urls []string
 	for i := 0; i < routePathCount; i++ {
 		staticRoute := fmt.Sprintf("/static%d", i)
