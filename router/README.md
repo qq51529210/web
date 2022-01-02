@@ -6,7 +6,12 @@ A http router written in GO。
 
 ```go
 root := router.NewRoot()
-root.Static(http.MethodGet, "staic", "http_static_root_dir", true)
+root.Global(func (ctx *Context) {
+    t := time.Now()
+    ctx.Next()
+    fmt.Println(time.Now().Sub(t1))
+})
+root.Static("staic", "http_static_root_dir", true)
 root.GET("login", loginHandleFunc)
 // 
 users := root.Sub("/users")

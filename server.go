@@ -31,7 +31,7 @@ func (s *server) ServeTLS(certFile, keyFile string) error {
 	return s.Server.ListenAndServeTLS(certFile, keyFile)
 }
 
-func (s *server) ServeTLSWithKeyPair(certFile, keyFile []byte) error {
+func (s *server) ServeTLSWithKeyPair(certPEM, keyPEM []byte) error {
 	l, err := net.Listen("tcp", s.Server.Addr)
 	if err != nil {
 		return err
@@ -42,7 +42,7 @@ func (s *server) ServeTLSWithKeyPair(certFile, keyFile []byte) error {
 		NextProtos: []string{"h2"},
 	}
 	s.Server.TLSConfig.Certificates = make([]tls.Certificate, 1)
-	s.Server.TLSConfig.Certificates[0], err = tls.X509KeyPair(certFile, keyFile)
+	s.Server.TLSConfig.Certificates[0], err = tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
 		return err
 	}

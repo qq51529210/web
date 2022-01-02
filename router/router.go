@@ -6,7 +6,6 @@ import (
 )
 
 type Router interface {
-	Sub(routePath string) Router
 	GET(routePath string, handle ...HandleFunc) error
 	HEAD(routePath string, handle ...HandleFunc) error
 	POST(routePath string, handle ...HandleFunc) error
@@ -16,17 +15,6 @@ type Router interface {
 	CONNECT(routePath string, handle ...HandleFunc) error
 	OPTIONS(routePath string, handle ...HandleFunc) error
 	TRACE(routePath string, handle ...HandleFunc) error
-}
-
-func NewRoot() Root {
-	r := new(rootRouter)
-	r.ctx.New = func() interface{} {
-		return new(Context)
-	}
-	for i := 0; i < _METHOD_INVALID; i++ {
-		r.root[i] = new(route)
-	}
-	return r
 }
 
 func splitRoutePath(routePath string) []string {

@@ -8,8 +8,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"testing"
-
-	"github.com/gin-gonic/gin"
+	// "github.com/gin-gonic/gin"
 )
 
 type testHandler struct {
@@ -41,7 +40,7 @@ func (h *testHandler) Reset() {
 }
 
 func Test_Router(t *testing.T) {
-	root := NewRoot()
+	root := NewRootRouter()
 	root.NotFound(func(ctx *Context) {
 		ctx.WriteHeader(200)
 	})
@@ -75,7 +74,7 @@ func Test_Router(t *testing.T) {
 }
 
 func Test_Router_Static(t *testing.T) {
-	root := NewRoot()
+	root := NewRootRouter()
 	root.NotFound(func(ctx *Context) {
 		t.FailNow()
 	})
@@ -83,7 +82,7 @@ func Test_Router_Static(t *testing.T) {
 	request := new(http.Request)
 	request.URL = new(url.URL)
 	request.Method = http.MethodGet
-	err := root.Static(http.MethodGet, "/static", ".", false)
+	err := root.Static("/static", ".", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +149,7 @@ func benchmarkServeHTTP(b *testing.B, handler http.Handler, urls []string) {
 }
 
 func Benchmark_My(b *testing.B) {
-	root := NewRoot()
+	root := NewRootRouter()
 	routes, urls := benchmarkRoutePaths()
 	for i := 0; i < len(routes); i++ {
 		root.GET(routes[i], func(ctx *Context) {})
@@ -159,13 +158,13 @@ func Benchmark_My(b *testing.B) {
 	benchmarkServeHTTP(b, root, urls)
 }
 
-func Benchmark_Gin(b *testing.B) {
-	gin.SetMode(gin.ReleaseMode)
-	root := gin.New()
-	root.NoMethod(func(c *gin.Context) { b.FailNow() })
-	routes, urls := benchmarkRoutePaths()
-	for i := 0; i < len(routes); i++ {
-		root.GET(routes[i], func(c *gin.Context) {})
-	}
-	benchmarkServeHTTP(b, root, urls)
-}
+// func Benchmark_Gin(b *testing.B) {
+// 	gin.SetMode(gin.ReleaseMode)
+// 	root := gin.New()
+// 	root.NoMethod(func(c *gin.Context) { b.FailNow() })
+// 	routes, urls := benchmarkRoutePaths()
+// 	for i := 0; i < len(routes); i++ {
+// 		root.GET(routes[i], func(c *gin.Context) {})
+// 	}
+// 	benchmarkServeHTTP(b, root, urls)
+// }

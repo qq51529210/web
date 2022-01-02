@@ -1,13 +1,11 @@
 package router
 
 import (
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 	"sync"
 )
 
@@ -32,20 +30,33 @@ var (
 	}
 )
 
-type Root interface {
+type RootRouter interface {
 	http.Handler
 	Router
-	Sub(routePath string) Router
+	SubRouter(routePath string) Router
+	Global(handle ...HandleFunc)
 	NotFound(handle ...HandleFunc)
 	// Add static file handlers.
 	// If file is a directory, add all sub files, routePath is root route of these handlers.
 	// If file name is "index.html", add extra route "/".
 	// If cache is true, use CachaHandler, else use FileHandler.
-	Static(method, routePath, file string, cache bool) error
+	Static(routePath, file string, cache bool) error
+}
+
+func NewRootRouter() RootRouter {
+	r := new(rootRouter)
+	r.ctx.New = func() interface{} {
+		return new(Context)
+	}
+	for i := 0; i < _METHOD_INVALID; i++ {
+		r.root[i] = new(route)
+	}
+	return r
 }
 
 type rootRouter struct {
 	root     [_METHOD_INVALID]*route
+	global   []HandleFunc
 	notfound []HandleFunc
 	ctx      sync.Pool
 }
@@ -57,54 +68,36 @@ func (r *rootRouter) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	ctx.Param = ctx.Param[:0]
 	ctx.Data = nil
 	ctx.handleIdx = -1
+	ctx.handleFunc = ctx.handleFunc[:0]
+	ctx.handleFunc = append(ctx.handleFunc, r.global...)
 	//
-	var root *route
+	var route *route
 	if req.Method[0] == 'G' {
-		root = r.root[_METHOD_GET]
+		route = r.root[_METHOD_GET].Match(ctx)
 	} else if req.Method[0] == 'H' {
-		root = r.root[_METHOD_HEAD]
+		route = r.root[_METHOD_HEAD].Match(ctx)
 	} else if req.Method[0] == 'D' {
-		root = r.root[_METHOD_DELETE]
+		route = r.root[_METHOD_DELETE].Match(ctx)
 	} else if req.Method[0] == 'C' {
-		root = r.root[_METHOD_CONNECT]
+		route = r.root[_METHOD_CONNECT].Match(ctx)
 	} else if req.Method[0] == 'O' {
-		root = r.root[_METHOD_OPTIONS]
+		route = r.root[_METHOD_OPTIONS].Match(ctx)
 	} else if req.Method[0] == 'T' {
-		root = r.root[_METHOD_TRACE]
+		route = r.root[_METHOD_TRACE].Match(ctx)
 	} else if req.Method[1] == 'O' {
-		root = r.root[_METHOD_POST]
+		route = r.root[_METHOD_POST].Match(ctx)
 	} else if req.Method[1] == 'U' {
-		root = r.root[_METHOD_PUT]
+		route = r.root[_METHOD_PUT].Match(ctx)
 	} else if req.Method[1] == 'A' {
-		root = r.root[_METHOD_PATCH]
-	} else {
-		ctx.handleFunc = r.notfound
-		ctx.Next()
-		r.ctx.Put(ctx)
-		return
+		route = r.root[_METHOD_PATCH].Match(ctx)
 	}
-	//
-	route := root.Match(ctx)
 	if route == nil {
-		ctx.handleFunc = r.notfound
+		ctx.handleFunc = append(ctx.handleFunc, r.notfound...)
 	} else {
-		ctx.handleFunc = route.handleFunc
+		ctx.handleFunc = append(ctx.handleFunc, route.handleFunc...)
 	}
-	//
 	ctx.Next()
 	r.ctx.Put(ctx)
-}
-
-func (r *rootRouter) NotFound(handle ...HandleFunc) {
-	if len(handle) != 0 {
-		r.notfound = handle
-	} else {
-		r.notfound = notfoundHandlerFunc
-	}
-}
-
-func (r *rootRouter) Sub(routePath string) Router {
-	return &subRouter{path: routePath, root: r}
 }
 
 func (r *rootRouter) GET(routePath string, handle ...HandleFunc) error {
@@ -143,32 +136,7 @@ func (r *rootRouter) TRACE(routePath string, handle ...HandleFunc) error {
 	return r.root[_METHOD_TRACE].Add(routePath, handle...)
 }
 
-func (r *rootRouter) Static(method, routePath, file string, cache bool) error {
-	var root *route
-	switch strings.ToUpper(method) {
-	case http.MethodGet:
-		root = r.root[_METHOD_GET]
-	case http.MethodHead:
-		root = r.root[_METHOD_HEAD]
-	case http.MethodPost:
-		root = r.root[_METHOD_POST]
-	case http.MethodPut:
-		root = r.root[_METHOD_PUT]
-	case http.MethodPatch:
-		root = r.root[_METHOD_PATCH]
-	case http.MethodDelete:
-		root = r.root[_METHOD_DELETE]
-	case http.MethodConnect:
-		root = r.root[_METHOD_CONNECT]
-	case http.MethodOptions:
-		root = r.root[_METHOD_OPTIONS]
-	default:
-		return fmt.Errorf("invalid method %s", method)
-	}
-	return r.static(root, routePath, file, cache)
-}
-
-func (r *rootRouter) static(root *route, routePath, file string, cache bool) error {
+func (r *rootRouter) Static(routePath, file string, cache bool) error {
 	fi, err := os.Stat(file)
 	if err != nil {
 		return err
@@ -181,13 +149,13 @@ func (r *rootRouter) static(root *route, routePath, file string, cache bool) err
 		}
 		if !cache {
 			h := &FileHandler{file: file}
-			err = root.Add(routePath, h.Handle)
+			err = r.root[_METHOD_GET].Add(routePath, h.Handle)
 		} else {
 			h, err := NewCacheHandlerFromFile(file)
 			if err != nil {
 				return err
 			}
-			err = root.Add(routePath, h.Handle)
+			err = r.root[_METHOD_GET].Add(routePath, h.Handle)
 		}
 		if err != nil {
 			return err
@@ -197,13 +165,13 @@ func (r *rootRouter) static(root *route, routePath, file string, cache bool) err
 			file, _ = filepath.Split(file)
 			if !cache {
 				h := &FileHandler{file: file}
-				return root.Add(routePath, h.Handle)
+				return r.root[_METHOD_GET].Add(routePath, h.Handle)
 			} else {
 				h, err := NewCacheHandlerFromFile(file)
 				if err != nil {
 					return err
 				}
-				return root.Add(routePath, h.Handle)
+				return r.root[_METHOD_GET].Add(routePath, h.Handle)
 			}
 		}
 		return nil
@@ -215,10 +183,26 @@ func (r *rootRouter) static(root *route, routePath, file string, cache bool) err
 	}
 	// Add sub
 	for i := 0; i < len(fis); i++ {
-		err = r.static(root, path.Join(routePath, fis[i].Name()), filepath.Join(file, fis[i].Name()), cache)
+		err = r.Static(path.Join(routePath, fis[i].Name()), filepath.Join(file, fis[i].Name()), cache)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (r *rootRouter) NotFound(handle ...HandleFunc) {
+	if len(handle) != 0 {
+		r.notfound = handle
+	} else {
+		r.notfound = notfoundHandlerFunc
+	}
+}
+
+func (r *rootRouter) Global(handle ...HandleFunc) {
+	r.global = handle
+}
+
+func (r *rootRouter) SubRouter(routePath string) Router {
+	return &subRouter{path: routePath, root: r}
 }
