@@ -152,7 +152,7 @@ func (r *route) addStatic(routePath string, rootPath *strings.Builder) (*route, 
 	// case 3, r.path="/ab", routePath="/abc", diff1="", diff2="c".
 	if diff1 == "" {
 		if r.paramChild != nil {
-			return nil, fmt.Errorf(`"%v "has sub parameter ?`, rootPath)
+			return nil, fmt.Errorf(`"%v" has sub parameter "?"`, rootPath)
 		}
 		for _, child := range r.staticChild {
 			if child.path[0] == diff2[0] {
