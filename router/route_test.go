@@ -12,6 +12,14 @@ func test_Fatal(t *testing.T, err error) {
 	}
 }
 
+func test_Error(t *testing.T, err error) {
+	if err == nil {
+		t.FailNow()
+	} else {
+		t.Log(err)
+	}
+}
+
 func test_Fail(t *testing.T, oks ...bool) {
 	for _, ok := range oks {
 		if ok {
@@ -27,21 +35,20 @@ func Test_Route_Add_Match(t *testing.T) {
 }
 
 func test_Route_Add(t *testing.T, r *route) {
-	test_Fatal(t, r.Add("/a/1"))
-	test_Fatal(t, r.Add("/a/1/:"))
-	test_Fatal(t, r.Add("/a/1/:/*"))
-	test_Fatal(t, r.Add("/a/12"))
-	test_Fail(t, r.Add("/a/:") == nil)
-	test_Fail(t, r.Add("/a/1/*") == nil)
-	test_Fail(t, r.Add("/a/1/:/:") == nil)
-	test_Fail(t, r.Add(":") == nil)
-	test_Fail(t, r.Add("*") == nil)
 	test_Fatal(t, r.Add(""))
 	test_Fatal(t, r.Add("/"))
-	test_Fatal(t, r.Add("/b/1"))
-	test_Fatal(t, r.Add("/b/1/:"))
-	test_Fatal(t, r.Add("/b/1/:/*"))
-	test_Fatal(t, r.Add("/b/12"))
+	test_Fatal(t, r.Add("/a"))
+	test_Fatal(t, r.Add("/a"))
+	test_Error(t, r.Add("/?"))
+	test_Fatal(t, r.Add("/a/"))
+	test_Fatal(t, r.Add("/ab"))
+	test_Fatal(t, r.Add("/a/b"))
+	test_Fatal(t, r.Add("/a/b/c"))
+	test_Fatal(t, r.Add("/b/?"))
+	test_Fatal(t, r.Add("/b/?"))
+	test_Error(t, r.Add("/b/b"))
+	test_Fatal(t, r.Add("/b/?/?"))
+	test_Fatal(t, r.Add("/bc/?"))
 }
 
 func test_Route_Match(t *testing.T, r *route) {

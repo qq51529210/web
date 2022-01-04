@@ -2,8 +2,11 @@ package router
 
 import (
 	"fmt"
+	"path"
 	"strings"
 )
+
+const paramChar = '?'
 
 type route struct {
 	handleFunc  []HandleFunc
@@ -13,46 +16,41 @@ type route struct {
 }
 
 func (r *route) Match(ctx *Context) *route {
-	path := ctx.Request.URL.Path
-	route := r
-	//
-	if len(path) < len(route.path) || path[:len(route.path)] != route.path {
+	_path := ctx.Request.URL.Path
+	// root
+	if len(_path) < len(r.path) || _path[:len(r.path)] != r.path {
 		return nil
 	}
-	path = path[len(route.path):]
-	if path == "" {
-		return route
+	_path = _path[len(r.path):]
+	if _path == "" {
+		return r
 	}
 	ctx.Param = ctx.Param[:0]
+	idx := 0
+	route := r
 Loop:
 	for {
 		if route.paramChild != nil {
-			if route.paramChild.path == ":" {
-				i := strings.IndexByte(path, '/')
-				if i < 0 {
-					ctx.Param = append(ctx.Param, path)
-					return route.paramChild
-				}
-				ctx.Param = append(ctx.Param, path[:i])
-				// skip '/'
-				path = path[i+1:]
-				if path == "" {
-					return route.paramChild
-				}
-				route = route.paramChild
-				continue Loop
-			}
-			if route.paramChild.path == "*" {
-				ctx.Param = append(ctx.Param, path)
+			idx = strings.IndexByte(_path, '/')
+			if idx < 0 {
+				ctx.Param = append(ctx.Param, _path)
 				return route.paramChild
 			}
+			ctx.Param = append(ctx.Param, _path[:idx])
+			// skip '/'
+			_path = _path[idx+1:]
+			if _path == "" {
+				return route.paramChild
+			}
+			route = route.paramChild
+			continue
 		}
 		for _, child := range route.staticChild {
-			if len(path) < len(child.path) || path[:len(child.path)] != child.path {
+			if len(_path) < len(child.path) || _path[:len(child.path)] != child.path {
 				continue
 			}
-			path = path[len(child.path):]
-			if path == "" {
+			_path = _path[len(child.path):]
+			if _path == "" {
 				return child
 			}
 			route = child
@@ -63,36 +61,79 @@ Loop:
 }
 
 func (r *route) Add(routePath string, handle ...HandleFunc) error {
-	routePaths := splitRoutePath(routePath)
+	routePath = path.Clean(path.Join("/", routePath))
+	_routePath := routePath
 	//
+	var routePaths []string
+	for _routePath != "" {
+		i := strings.IndexByte(_routePath, paramChar)
+		if i < 0 {
+			routePaths = append(routePaths, _routePath)
+			break
+		}
+		if _routePath[:i] != "" {
+			routePaths = append(routePaths, _routePath[:i])
+		}
+		routePaths = append(routePaths, string(paramChar))
+		_routePath = strings.TrimLeftFunc(_routePath[i:], func(r rune) bool { return r != '/' })
+		if _routePath == "" {
+			break
+		}
+		// skip '/'
+		_routePath = _routePath[1:]
+	}
+	//
+	var rootPath strings.Builder
+	var child *route
+	var err error
 	current := r
+	if current.path != "" {
+		rootPath.WriteString(current.path)
+	}
 	for _, p := range routePaths {
-		var child *route
-		if p == ":" || p == "*" {
-			child = current.addParam(p)
+		//
+		if p[0] == paramChar {
+			child, err = current.addParam(p, &rootPath)
 		} else {
-			child = current.addStatic(p)
+			child, err = current.addStatic(p, &rootPath)
 		}
-		if child == nil {
-			return fmt.Errorf("add route %s fail", routePath)
+		if err != nil {
+			return fmt.Errorf(`add "%s" failed, %v`, routePath, err)
 		}
-		current = child
+		if current != child {
+			if current.path[0] == paramChar {
+				rootPath.WriteByte('/')
+			}
+			rootPath.WriteString(current.path)
+			current = child
+		}
 	}
 	current.handleFunc = handle
 	return nil
 }
 
-func (r *route) addStatic(routePath string) *route {
-	//
+func (r *route) addStatic(routePath string, rootPath *strings.Builder) (*route, error) {
+	// root
 	if r.path == "" {
 		r.path = routePath
-		return r
+		return r, nil
 	}
 	// case 1
 	if r.path == routePath {
-		return r
+		return r, nil
 	}
-	diff1, diff2 := diffString(r.path, routePath)
+	// difference string
+	n := len(r.path)
+	if n > len(routePath) {
+		n = len(routePath)
+	}
+	i := 0
+	for ; i < n; i++ {
+		if r.path[i] != routePath[i] {
+			break
+		}
+	}
+	diff1, diff2 := r.path[i:], routePath[i:]
 	// case 2, r.path="/abc", routePath="/ab", diff1="c", diff2=""
 	if diff2 == "" {
 		child := new(route)
@@ -106,22 +147,22 @@ func (r *route) addStatic(routePath string) *route {
 		r.staticChild = make([]*route, 1)
 		r.staticChild[0] = child
 		r.paramChild = nil
-		return child
+		return child, nil
 	}
 	// case 3, r.path="/ab", routePath="/abc", diff1="", diff2="c".
 	if diff1 == "" {
-		// "/a/:" or "/a/*"
 		if r.paramChild != nil {
-			return nil
+			return nil, fmt.Errorf(`"%v "has sub parameter ?`, rootPath)
 		}
 		for _, child := range r.staticChild {
 			if child.path[0] == diff2[0] {
-				return child.addStatic(diff2)
+				rootPath.WriteString(child.path)
+				return child.addStatic(diff2, rootPath)
 			}
 		}
 		route := &route{path: diff2}
 		r.staticChild = append(r.staticChild, route)
-		return route
+		return route, nil
 	}
 	// case 4, r.path="/abc", routePath="/abd", diff1="c", diff2="d".
 	child1 := new(route)
@@ -142,30 +183,16 @@ func (r *route) addStatic(routePath string) *route {
 	r.staticChild[0] = child1
 	r.staticChild[1] = child2
 	r.paramChild = nil
-	return child2
+	return child2, nil
 }
 
-func (r *route) addParam(routePath string) *route {
-	// "/a/b"
+func (r *route) addParam(routePath string, rootPath *strings.Builder) (*route, error) {
 	if len(r.staticChild) != 0 {
-		return nil
+		return nil, fmt.Errorf(`"%v" has sub static "%s"`, rootPath, r.staticChild[0].path)
 	}
-	// "/a/:" or "/a/*"
-	if r.paramChild != nil {
-		// "/a/*"
-		if r.paramChild.path == "*" {
-			if routePath != "*" {
-				return nil
-			}
-			return r.paramChild
-		}
-		// "/a/:"
-		if routePath != ":" {
-			return nil
-		}
-		return r.paramChild
+	if r.paramChild == nil {
+		r.paramChild = new(route)
+		r.paramChild.path = routePath
 	}
-	r.paramChild = new(route)
-	r.paramChild.path = routePath
-	return r.paramChild
+	return r.paramChild, nil
 }

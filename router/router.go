@@ -1,83 +1,160 @@
 package router
 
 import (
+	"fmt"
+	"io/ioutil"
+	"net/http"
+	"os"
 	"path"
-	"strings"
+	"path/filepath"
 )
 
+const (
+	_METHOD_GET = iota
+	_METHOD_HEAD
+	_METHOD_POST
+	_METHOD_PUT
+	_METHOD_PATCH
+	_METHOD_DELETE
+	_METHOD_CONNECT
+	_METHOD_OPTIONS
+	_METHOD_TRACE
+	_METHOD_INVALID
+)
+
+func methodString(m int) string {
+	switch m {
+	case _METHOD_GET:
+		return http.MethodGet
+	case _METHOD_HEAD:
+		return http.MethodHead
+	case _METHOD_POST:
+		return http.MethodPost
+	case _METHOD_PUT:
+		return http.MethodPut
+	case _METHOD_PATCH:
+		return http.MethodPatch
+	case _METHOD_DELETE:
+		return http.MethodDelete
+	case _METHOD_CONNECT:
+		return http.MethodConnect
+	case _METHOD_OPTIONS:
+		return http.MethodOptions
+	case _METHOD_TRACE:
+		return http.MethodTrace
+	default:
+		return ""
+	}
+}
+
 type Router interface {
-	GET(routePath string, handle ...HandleFunc) error
-	HEAD(routePath string, handle ...HandleFunc) error
-	POST(routePath string, handle ...HandleFunc) error
-	PUT(routePath string, handle ...HandleFunc) error
-	PATCH(routePath string, handle ...HandleFunc) error
-	DELETE(routePath string, handle ...HandleFunc) error
-	CONNECT(routePath string, handle ...HandleFunc) error
-	OPTIONS(routePath string, handle ...HandleFunc) error
-	TRACE(routePath string, handle ...HandleFunc) error
+	GET(routePath string, handle ...HandleFunc)
+	HEAD(routePath string, handle ...HandleFunc)
+	POST(routePath string, handle ...HandleFunc)
+	PUT(routePath string, handle ...HandleFunc)
+	PATCH(routePath string, handle ...HandleFunc)
+	DELETE(routePath string, handle ...HandleFunc)
+	CONNECT(routePath string, handle ...HandleFunc)
+	OPTIONS(routePath string, handle ...HandleFunc)
+	TRACE(routePath string, handle ...HandleFunc)
 }
 
-func splitRoutePath(routePath string) []string {
-	if routePath == "" || routePath == "/" {
-		return []string{"/"}
+type router struct {
+	root [_METHOD_INVALID]route
+}
+
+func (r *router) Add(method int, routePath string, handle ...HandleFunc) {
+	if len(handle) < 1 {
+		panic(fmt.Errorf("[%s] %s fail, empty handle function", methodString(method), routePath))
 	}
-	routePath = path.Clean(routePath)
-	//
-	var routePaths []string
-	var static []string
-	for _, p := range strings.Split(routePath, "/") {
-		if p == "" {
-			continue
-		}
-		if p[0] == ':' || p[0] == '*' {
-			if len(static) > 0 {
-				staticPath := strings.Join(static, "/")
-				static = static[:0]
-				if len(routePaths) == 0 {
-					routePaths = append(routePaths, "/"+staticPath+"/")
-				} else {
-					if routePaths[len(routePaths)-1] == ":" ||
-						routePaths[len(routePaths)-1] == "*" {
-						routePaths = append(routePaths, staticPath+"/")
-					}
-				}
-			} else {
-				if len(routePaths) == 0 {
-					routePaths = append(routePaths, "/")
-				}
-			}
-			routePaths = append(routePaths, string(p[0]))
-			if p[0] == '*' {
-				break
-			}
-			continue
-		}
-		static = append(static, p)
+	err := r.root[method].Add(routePath, handle...)
+	if err != nil {
+		panic(fmt.Errorf("[%s] %s fail, %v", methodString(method), routePath, err))
 	}
-	if len(static) > 0 {
-		staticPath := strings.Join(static, "/")
-		if len(routePaths) == 0 {
-			routePaths = append(routePaths, "/"+staticPath)
+}
+
+func (r *router) GET(routePath string, handle ...HandleFunc) {
+	r.Add(_METHOD_GET, routePath, handle...)
+}
+
+func (r *router) HEAD(routePath string, handle ...HandleFunc) {
+	r.Add(_METHOD_HEAD, routePath, handle...)
+}
+
+func (r *router) POST(routePath string, handle ...HandleFunc) {
+	r.Add(_METHOD_POST, routePath, handle...)
+}
+
+func (r *router) PUT(routePath string, handle ...HandleFunc) {
+	r.Add(_METHOD_PUT, routePath, handle...)
+}
+
+func (r *router) PATCH(routePath string, handle ...HandleFunc) {
+	r.Add(_METHOD_PATCH, routePath, handle...)
+}
+
+func (r *router) DELETE(routePath string, handle ...HandleFunc) {
+	r.Add(_METHOD_DELETE, routePath, handle...)
+}
+
+func (r *router) CONNECT(routePath string, handle ...HandleFunc) {
+	r.Add(_METHOD_CONNECT, routePath, handle...)
+}
+
+func (r *router) OPTIONS(routePath string, handle ...HandleFunc) {
+	r.Add(_METHOD_OPTIONS, routePath, handle...)
+}
+
+func (r *router) TRACE(routePath string, handle ...HandleFunc) {
+	r.Add(_METHOD_TRACE, routePath, handle...)
+}
+
+func (r *router) Static(routePath, file string, cache bool) {
+	fi, err := os.Stat(file)
+	if err != nil {
+		panic(err)
+	}
+	// Is a file
+	if !fi.IsDir() {
+		fi, err := os.Stat(file)
+		if err != nil {
+			panic(err)
+		}
+		if !cache {
+			h := &FileHandler{file: file}
+			err = r.root[_METHOD_GET].Add(routePath, h.Handle)
 		} else {
-			if routePaths[len(routePaths)-1] == ":" ||
-				routePaths[len(routePaths)-1] == "*" {
-				routePaths = append(routePaths, staticPath)
+			h, err := NewCacheHandlerFromFile(file)
+			if err != nil {
+				panic(err)
+			}
+			err = r.root[_METHOD_GET].Add(routePath, h.Handle)
+		}
+		if err != nil {
+			panic(err)
+		}
+		//
+		if fi.Name() == "index.html" {
+			file, _ = filepath.Split(file)
+			if !cache {
+				h := &FileHandler{file: file}
+				r.root[_METHOD_GET].Add(routePath, h.Handle)
+			} else {
+				h, err := NewCacheHandlerFromFile(file)
+				if err != nil {
+					panic(err)
+				}
+				r.root[_METHOD_GET].Add(routePath, h.Handle)
 			}
 		}
 	}
-	return routePaths
-}
-
-func diffString(s1, s2 string) (string, string) {
-	n := len(s1)
-	if n > len(s2) {
-		n = len(s2)
+	// Is a dir
+	fis, err := ioutil.ReadDir(file)
+	if err != nil {
+		panic(err)
 	}
-	i := 0
-	for ; i < n; i++ {
-		if s1[i] != s2[i] {
-			break
-		}
+	// Add sub
+	for i := 0; i < len(fis); i++ {
+		r.Static(path.Join(routePath, fis[i].Name()), filepath.Join(file, fis[i].Name()), cache)
 	}
-	return s1[i:], s2[i:]
 }
