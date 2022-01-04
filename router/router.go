@@ -68,10 +68,7 @@ func (r *router) Add(method int, routePath string, handle ...HandleFunc) {
 	if len(handle) < 1 {
 		panic(fmt.Errorf("[%s] %s fail, empty handle function", methodString(method), routePath))
 	}
-	err := r.root[method].Add(routePath, handle...)
-	if err != nil {
-		panic(fmt.Errorf("[%s] %s fail, %v", methodString(method), routePath, err))
-	}
+	r.root[method].Add(routePath, handle...)
 }
 
 func (r *router) GET(routePath string, handle ...HandleFunc) {
@@ -122,17 +119,13 @@ func (r *router) Static(routePath, file string, cache bool) {
 			panic(err)
 		}
 		if !cache {
-			h := &FileHandler{file: file}
-			err = r.root[_METHOD_GET].Add(routePath, h.Handle)
+			r.root[_METHOD_GET].Add(routePath, (&FileHandler{file: file}).Handle)
 		} else {
 			h, err := NewCacheHandlerFromFile(file)
 			if err != nil {
 				panic(err)
 			}
-			err = r.root[_METHOD_GET].Add(routePath, h.Handle)
-		}
-		if err != nil {
-			panic(err)
+			r.root[_METHOD_GET].Add(routePath, h.Handle)
 		}
 		//
 		if fi.Name() == "index.html" {
@@ -148,6 +141,7 @@ func (r *router) Static(routePath, file string, cache bool) {
 				r.root[_METHOD_GET].Add(routePath, h.Handle)
 			}
 		}
+		return
 	}
 	// Is a dir
 	fis, err := ioutil.ReadDir(file)

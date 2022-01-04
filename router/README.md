@@ -33,15 +33,15 @@ yourServer.httpServer.Handler = root
 
 ```golang
 // UrlCount = 5 * 3, UrlDeep = 2
-Benchmark_My-4           1296975               933 ns/op               0 B/op          0 allocs/op
+Benchmark_My-4           1300068               927 ns/op               0 B/op          0 allocs/op
 Benchmark_Gin-4           927745              1102 ns/op               0 B/op          0 allocs/op
 // UrlCount = 10 * 3, UrlDeep = 3
-Benchmark_My-4            469432              2242 ns/op               0 B/op          0 allocs/op
+Benchmark_My-4            455833              2280 ns/op               0 B/op          0 allocs/op
 Benchmark_Gin-4           431293              2465 ns/op               0 B/op          0 allocs/op
 // UrlCount = 20 * 3, UrlDeep = 5
-Benchmark_My-4            223212              5332 ns/op               0 B/op          0 allocs/op
+Benchmark_My-4            205758              5365 ns/op               0 B/op          0 allocs/op
 Benchmark_Gin-4           199281              5566 ns/op               0 B/op          0 allocs/op
 // UrlCount = 30 * 3, UrlDeep = 7
-Benchmark_My-4            122394              9305 ns/op               0 B/op          0 allocs/op
+Benchmark_My-4            121921              9018 ns/op               0 B/op          0 allocs/op
 Benchmark_Gin-4           119985              9731 ns/op               0 B/op          0 allocs/op
 ```

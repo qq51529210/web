@@ -1,7 +1,6 @@
 package router
 
 import (
-	"fmt"
 	"path"
 	"strings"
 )
@@ -30,6 +29,17 @@ func (r *route) Match(ctx *Context) *route {
 	route := r
 Loop:
 	for {
+		for _, child := range route.staticChild {
+			if len(_path) < len(child.path) || _path[:len(child.path)] != child.path {
+				continue
+			}
+			_path = _path[len(child.path):]
+			if _path == "" {
+				return child
+			}
+			route = child
+			continue Loop
+		}
 		if route.paramChild != nil {
 			idx = strings.IndexByte(_path, '/')
 			if idx < 0 {
@@ -43,24 +53,13 @@ Loop:
 				return route.paramChild
 			}
 			route = route.paramChild
-			continue
-		}
-		for _, child := range route.staticChild {
-			if len(_path) < len(child.path) || _path[:len(child.path)] != child.path {
-				continue
-			}
-			_path = _path[len(child.path):]
-			if _path == "" {
-				return child
-			}
-			route = child
 			continue Loop
 		}
 		return nil
 	}
 }
 
-func (r *route) Add(routePath string, handle ...HandleFunc) error {
+func (r *route) Add(routePath string, handle ...HandleFunc) {
 	routePath = path.Clean(path.Join("/", routePath))
 	_routePath := routePath
 	//
@@ -83,44 +82,27 @@ func (r *route) Add(routePath string, handle ...HandleFunc) error {
 		_routePath = _routePath[1:]
 	}
 	//
-	var rootPath strings.Builder
-	var child *route
-	var err error
 	current := r
-	if current.path != "" {
-		rootPath.WriteString(current.path)
-	}
 	for _, p := range routePaths {
 		//
 		if p[0] == paramChar {
-			child, err = current.addParam(p, &rootPath)
+			current = current.addParam(p)
 		} else {
-			child, err = current.addStatic(p, &rootPath)
-		}
-		if err != nil {
-			return fmt.Errorf(`add "%s" failed, %v`, routePath, err)
-		}
-		if current != child {
-			if current.path[0] == paramChar {
-				rootPath.WriteByte('/')
-			}
-			rootPath.WriteString(current.path)
-			current = child
+			current = current.addStatic(p)
 		}
 	}
 	current.handleFunc = handle
-	return nil
 }
 
-func (r *route) addStatic(routePath string, rootPath *strings.Builder) (*route, error) {
+func (r *route) addStatic(routePath string) *route {
 	// root
 	if r.path == "" {
 		r.path = routePath
-		return r, nil
+		return r
 	}
 	// case 1
 	if r.path == routePath {
-		return r, nil
+		return r
 	}
 	// difference string
 	n := len(r.path)
@@ -147,22 +129,18 @@ func (r *route) addStatic(routePath string, rootPath *strings.Builder) (*route, 
 		r.staticChild = make([]*route, 1)
 		r.staticChild[0] = child
 		r.paramChild = nil
-		return child, nil
+		return child
 	}
 	// case 3, r.path="/ab", routePath="/abc", diff1="", diff2="c".
-	if diff1 == "" {
-		if r.paramChild != nil {
-			return nil, fmt.Errorf(`"%v" has sub parameter "?"`, rootPath)
-		}
+	if diff1 == "" || diff1 == "?" {
 		for _, child := range r.staticChild {
 			if child.path[0] == diff2[0] {
-				rootPath.WriteString(child.path)
-				return child.addStatic(diff2, rootPath)
+				return child.addStatic(diff2)
 			}
 		}
 		route := &route{path: diff2}
 		r.staticChild = append(r.staticChild, route)
-		return route, nil
+		return route
 	}
 	// case 4, r.path="/abc", routePath="/abd", diff1="c", diff2="d".
 	child1 := new(route)
@@ -183,16 +161,13 @@ func (r *route) addStatic(routePath string, rootPath *strings.Builder) (*route, 
 	r.staticChild[0] = child1
 	r.staticChild[1] = child2
 	r.paramChild = nil
-	return child2, nil
+	return child2
 }
 
-func (r *route) addParam(routePath string, rootPath *strings.Builder) (*route, error) {
-	if len(r.staticChild) != 0 {
-		return nil, fmt.Errorf(`"%v" has sub static "%s"`, rootPath, r.staticChild[0].path)
-	}
+func (r *route) addParam(routePath string) *route {
 	if r.paramChild == nil {
 		r.paramChild = new(route)
 		r.paramChild.path = routePath
 	}
-	return r.paramChild, nil
+	return r.paramChild
 }
