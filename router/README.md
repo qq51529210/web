@@ -6,23 +6,50 @@ A http router written in GO。
 
 ```go
 root := router.NewRootRouter()
+// global handler
 root.Global(func (ctx *Context) {
     t := time.Now()
     ctx.Next()
     fmt.Println(time.Now().Sub(t1))
 })
+// handle not match, default only response 404
+root.NotFound(func (ctx *Context) {
+	ctx.WriteHeader(404)
+})
+// handle static files
 root.Static("staic", "http_static_root_dir", true)
-root.GET("login", loginHandleFunc)
-// 
-users := root.SubRouter("/users")
-users.GET("", getUsersHandleFunc)
-users.GET("/:", getUserHandleFunc)
-users.POST("", addUsersHandleFunc)
+// "github.com/login" and "github.com/qq51529210"
+root.GET("/login", handleLogin)
+root.GET("/?", handleUser)
+// import "handler/foo"
+foo.Init(root.SubRouter("/api/foo"))
+// server
+server := web.NewServer(":80", root)
+server.Serve()
+```
+
+```go
+// foo package
+func Init(router router.Router) {
+    router.GET("", list)
+    router.GET("?", get)
+    router.POST("", add)
+}
+
+func list(ctx *router.Context) {
+
+}
+
+func get(ctx *router.Context) {
+
+}
+
+func add(ctx *router.Context) {
+
+}
 // 
 server := web.NewServer(":80", root)
 server.Serve()
-// or 
-yourServer.httpServer.Handler = root
 ```
 
 ## Benchmark
