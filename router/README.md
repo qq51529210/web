@@ -7,7 +7,7 @@ A http router written in GO。
 ```go
 root := router.NewRootRouter()
 // global handler
-root.Global(func (ctx *Context) {
+root.Intercept(func (ctx *Context) {
     t := time.Now()
     ctx.Next()
     fmt.Println(time.Now().Sub(t1))
@@ -30,10 +30,16 @@ server.Serve()
 
 ```go
 // foo package
-func Init(router router.Router) {
-    router.GET("", list)
-    router.GET("?", get)
-    router.POST("", add)
+func Init(r router.Router) {
+    r.GET("", list)
+    r.GET("?", get)
+    r.Intercept(global)
+    // global + add
+    r.POST("", add)
+}
+
+func global(ctx *router.Context) {
+
 }
 
 func list(ctx *router.Context) {

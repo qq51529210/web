@@ -3,19 +3,22 @@ package router
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strings"
 	"testing"
 	// "github.com/gin-gonic/gin"
 )
 
 type testHandler struct {
 	header http.Header
-	buffer bytes.Buffer
-	funcs  []string
+	code   int
+	buffer strings.Builder
 	param  []string
+	req    *http.Request
 }
 
 func (h *testHandler) Header() http.Header {
@@ -30,65 +33,105 @@ func (h *testHandler) WriteString(s string) (n int, err error) {
 	return h.buffer.WriteString(s)
 }
 
-func (h *testHandler) WriteHeader(int) {
+func (h *testHandler) WriteHeader(code int) {
+	h.code = code
 }
 
 func (h *testHandler) Reset() {
 	h.header = make(http.Header)
+	h.code = 0
 	h.buffer.Reset()
-	h.funcs = make([]string, 0)
+}
+
+func newTestHandler() *testHandler {
+	h := new(testHandler)
+	h.req = new(http.Request)
+	h.req.Method = http.MethodGet
+	h.req.URL = new(url.URL)
+	h.Reset()
+	return h
 }
 
 func Test_Router(t *testing.T) {
-	root := NewRootRouter()
-	root.NotFound(func(ctx *Context) {
-		ctx.WriteHeader(200)
+	h := newTestHandler()
+	r := NewRootRouter()
+	// global
+	g1, g2 := 0, 0
+	r.Intercept(func(ctx *Context) {
+		g1++
+		ctx.Next()
 	})
-	handler := new(testHandler)
-	request := new(http.Request)
-	request.URL = new(url.URL)
-	//
-	request.URL.Path = "/v0/users"
-	request.Method = http.MethodGet
-	root.GET("/v0/users", func(ctx *Context) {})
-	root.ServeHTTP(handler, request)
-	//
-	request.URL.Path = "/v0/users"
-	request.Method = http.MethodPost
-	root.POST("/v0/users", func(ctx *Context) {})
-	root.ServeHTTP(handler, request)
-	//
-	request.URL.Path = "/v0/users/root"
-	request.Method = http.MethodGet
-	root.GET("/v0/users", func(ctx *Context) {})
-	root.ServeHTTP(handler, request)
-}
-
-func Test_Router_Static(t *testing.T) {
-	root := NewRootRouter()
-	root.NotFound(func(ctx *Context) {
-		t.FailNow()
+	// notfound
+	r.NotFound(func(ctx *Context) {
+		ctx.WriteHeader(404)
 	})
-	handler := new(testHandler)
-	request := new(http.Request)
-	request.URL = new(url.URL)
-	request.Method = http.MethodGet
-	root.Static("/static", ".", false)
+	// static, cache file which size less than 2kb.
+	r.Static("/static", ".", 1024*2)
+	// handle
+	r.GET("/login", func(ctx *Context) {
+		io.WriteString(ctx.ResponseWriter, "get login")
+	})
+	r.GET("/?", func(ctx *Context) {
+		io.WriteString(ctx.ResponseWriter, "get /"+ctx.Param[0])
+	})
+	// sub router
+	s := r.SubRouter("/foo")
+	s.GET("", func(ctx *Context) {
+		io.WriteString(ctx.ResponseWriter, "get foo list")
+	})
+	s.Intercept(func(ctx *Context) {
+		g2++
+		ctx.Next()
+	})
+	s.GET("?", func(ctx *Context) {
+		io.WriteString(ctx.ResponseWriter, "get foo "+ctx.Param[0])
+	})
+	//
 	fis, err := ioutil.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for i := 0; i < len(fis); i++ {
-		request.URL.Path = fmt.Sprintf("/static/%s", fis[i].Name())
-		handler.Reset()
-		root.ServeHTTP(handler, request)
-		data, err := ioutil.ReadFile(filepath.Join(".", fis[i].Name()))
+		h.req.URL.Path = fmt.Sprintf("/static/%s", fis[i].Name())
+		h.Reset()
+		r.ServeHTTP(h, h.req)
+		d, err := ioutil.ReadFile(filepath.Join(".", fis[i].Name()))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !bytes.Equal(data, handler.buffer.Bytes()) {
+		if !bytes.Equal(d, []byte(h.buffer.String())) {
 			t.FailNow()
 		}
+	}
+	//
+	g1 = 0
+	g2 = 0
+	//
+	h.req.URL.Path = "/login"
+	h.Reset()
+	r.ServeHTTP(h, h.req)
+	if h.code == 404 || h.buffer.String() != "get login" || g1 != 1 || g2 != 0 {
+		t.FailNow()
+	}
+	//
+	h.req.URL.Path = "/qq51529210"
+	h.Reset()
+	r.ServeHTTP(h, h.req)
+	if h.code == 404 || h.buffer.String() != "get /qq51529210" || g1 != 2 || g2 != 0 {
+		t.FailNow()
+	}
+	//
+	h.req.URL.Path = "/foo"
+	h.Reset()
+	r.ServeHTTP(h, h.req)
+	if h.code == 404 || h.buffer.String() != "get foo list" || g1 != 3 || g2 != 0 {
+		t.FailNow()
+	}
+	h.req.URL.Path = "/foo/qq51529210"
+	h.Reset()
+	r.ServeHTTP(h, h.req)
+	if h.code == 404 || h.buffer.String() != "get foo qq51529210" || g1 != 4 || g2 != 1 {
+		t.FailNow()
 	}
 }
 

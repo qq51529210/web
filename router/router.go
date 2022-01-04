@@ -58,13 +58,18 @@ type Router interface {
 	CONNECT(routePath string, handle ...HandleFunc)
 	OPTIONS(routePath string, handle ...HandleFunc)
 	TRACE(routePath string, handle ...HandleFunc)
+	// Handle before other handlers.
+	// Note the order.
+	Intercept(handle ...HandleFunc)
 }
 
 type router struct {
-	root [_METHOD_INVALID]route
+	intercept []HandleFunc
+	root      [_METHOD_INVALID]route
 }
 
 func (r *router) Add(method int, routePath string, handle ...HandleFunc) {
+	handle = append(r.intercept, handle...)
 	if len(handle) < 1 {
 		panic(fmt.Errorf("[%s] %s fail, empty handle function", methodString(method), routePath))
 	}
@@ -107,69 +112,68 @@ func (r *router) TRACE(routePath string, handle ...HandleFunc) {
 	r.Add(_METHOD_TRACE, routePath, handle...)
 }
 
-func (r *router) Static(routePath, file string, cache bool) {
-	fi, err := os.Stat(file)
-	if err != nil {
-		panic(err)
-	}
-	// Is a file
-	if !fi.IsDir() {
-		fi, err := os.Stat(file)
-		if err != nil {
-			panic(err)
-		}
-		if !cache {
-			r.root[_METHOD_GET].Add(routePath, (&FileHandler{file: file}).Handle)
-		} else {
-			h, err := NewCacheHandlerFromFile(file)
-			if err != nil {
-				panic(err)
-			}
-			r.root[_METHOD_GET].Add(routePath, h.Handle)
-		}
-		//
-		if fi.Name() == "index.html" {
-			file, _ = filepath.Split(file)
-			if !cache {
-				h := &FileHandler{file: file}
-				r.root[_METHOD_GET].Add(routePath, h.Handle)
-			} else {
-				h, err := NewCacheHandlerFromFile(file)
-				if err != nil {
-					panic(err)
-				}
-				r.root[_METHOD_GET].Add(routePath, h.Handle)
-			}
-		}
-		return
-	}
-	// Is a dir
-	fis, err := ioutil.ReadDir(file)
-	if err != nil {
-		panic(err)
-	}
-	// Add sub
-	for i := 0; i < len(fis); i++ {
-		r.Static(path.Join(routePath, fis[i].Name()), filepath.Join(file, fis[i].Name()), cache)
-	}
+func (r *router) Intercept(handle ...HandleFunc) {
+	r.intercept = handle
 }
 
 type subRouter struct {
-	path string
-	Router
+	path      string
+	intercept []HandleFunc
+	*router
+}
+
+func (r *subRouter) Intercept(handle ...HandleFunc) {
+	r.intercept = handle
+}
+
+func (r *subRouter) GET(routePath string, handle ...HandleFunc) {
+	r.router.GET(path.Join(r.path, routePath), append(r.intercept, handle...)...)
+}
+
+func (r *subRouter) HEAD(routePath string, handle ...HandleFunc) {
+	r.router.HEAD(path.Join(r.path, routePath), append(r.intercept, handle...)...)
+}
+
+func (r *subRouter) POST(routePath string, handle ...HandleFunc) {
+	r.router.POST(path.Join(r.path, routePath), append(r.intercept, handle...)...)
+}
+
+func (r *subRouter) PUT(routePath string, handle ...HandleFunc) {
+	r.router.PUT(path.Join(r.path, routePath), append(r.intercept, handle...)...)
+}
+
+func (r *subRouter) PATCH(routePath string, handle ...HandleFunc) {
+	r.router.PATCH(path.Join(r.path, routePath), append(r.intercept, handle...)...)
+}
+
+func (r *subRouter) DELETE(routePath string, handle ...HandleFunc) {
+	r.router.DELETE(path.Join(r.path, routePath), append(r.intercept, handle...)...)
+}
+
+func (r *subRouter) CONNECT(routePath string, handle ...HandleFunc) {
+	r.router.CONNECT(path.Join(r.path, routePath), append(r.intercept, handle...)...)
+}
+
+func (r *subRouter) OPTIONS(routePath string, handle ...HandleFunc) {
+	r.router.OPTIONS(path.Join(r.path, routePath), append(r.intercept, handle...)...)
+}
+
+func (r *subRouter) TRACE(routePath string, handle ...HandleFunc) {
+	r.router.TRACE(path.Join(r.path, routePath), append(r.intercept, handle...)...)
 }
 
 type RootRouter interface {
 	http.Handler
 	Router
+	// Create a new sub router with routePath.
 	SubRouter(routePath string) Router
-	Global(handle ...HandleFunc)
+	// Handle not match case.
+	// Default handler is http.ResponseWriter.WriteHeader(http.StatusNotFound).
 	NotFound(handle ...HandleFunc)
-	// Add static file handlers.
-	// If file is a directory, add all sub files, routePath is root route of these handlers.
-	// If file name is "index.html", add extra route "/".
-	// If cache is true, use CachaHandler, else use FileHandler.
-	Static(routePath, file string, cache bool)
+	// Handle static files.
+	// If file is directory, add all files in the directory.
+	// If file size less than cache, use CachaHandler, otherwise use FileHandler.
+	Static(routePath, file string, cache int64)
 }
 
 func NewRootRouter() RootRouter {
@@ -177,12 +181,16 @@ func NewRootRouter() RootRouter {
 	r.ctx.New = func() interface{} {
 		return new(Context)
 	}
+	r.notfound = []HandleFunc{
+		func(ctx *Context) {
+			ctx.ResponseWriter.WriteHeader(http.StatusNotFound)
+		},
+	}
 	return r
 }
 
 type rootRouter struct {
 	router
-	global   []HandleFunc
 	notfound []HandleFunc
 	ctx      sync.Pool
 }
@@ -192,8 +200,6 @@ func (r *rootRouter) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	ctx.Request = req
 	ctx.ResponseWriter = res
 	ctx.Data = nil
-	ctx.globalFunc = r.global
-	ctx.globalIdx = 0
 	ctx.handleIdx = 0
 	//
 	var route *route
@@ -228,19 +234,39 @@ func (r *rootRouter) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 func (r *rootRouter) NotFound(handle ...HandleFunc) {
 	if len(handle) != 0 {
 		r.notfound = handle
-	} else {
-		r.notfound = []HandleFunc{
-			func(ctx *Context) {
-				ctx.ResponseWriter.WriteHeader(http.StatusNotFound)
-			},
-		}
 	}
 }
 
-func (r *rootRouter) Global(handle ...HandleFunc) {
-	r.global = handle
+func (r *rootRouter) SubRouter(routePath string) Router {
+	return &subRouter{path: routePath, router: &r.router}
 }
 
-func (r *rootRouter) SubRouter(routePath string) Router {
-	return &subRouter{path: routePath, Router: r}
+func (r *rootRouter) Static(routePath, file string, cache int64) {
+	fi, err := os.Stat(file)
+	if err != nil {
+		panic(err)
+	}
+	if !fi.IsDir() {
+		// Is a file
+		if cache >= fi.Size() {
+			h, err := NewCacheHandlerFromFile(file)
+			if err != nil {
+				panic(err)
+			}
+			r.GET(routePath, h.Handle)
+		} else {
+			h := &FileHandler{file: file}
+			r.GET(routePath, h.Handle)
+		}
+	} else {
+		// Is a dir
+		fis, err := ioutil.ReadDir(file)
+		if err != nil {
+			panic(err)
+		}
+		// Add sub
+		for i := 0; i < len(fis); i++ {
+			r.Static(path.Join(routePath, fis[i].Name()), filepath.Join(file, fis[i].Name()), cache)
+		}
+	}
 }
