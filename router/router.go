@@ -233,7 +233,7 @@ func (r *rootRouter) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 func (r *rootRouter) NotFound(handle ...HandleFunc) {
 	if len(handle) != 0 {
-		r.notfound = handle
+		r.notfound = append(r.intercept, handle...)
 	}
 }
 

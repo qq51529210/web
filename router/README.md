@@ -6,19 +6,22 @@ A http router written in GO。
 
 ```go
 root := router.NewRootRouter()
-// global handler
+// Handle static files.
+// Before Intercept will not be intercepted.
+root.Static("staic", "http_static_root_dir", true)
+// Handle not match, default only response 404.
+// Before Intercept will not be intercepted.
+root.NotFound(func (ctx *Context) {
+	ctx.WriteHeader(404)
+})
+// Global handler
 root.Intercept(func (ctx *Context) {
     t := time.Now()
     ctx.Next()
     fmt.Println(time.Now().Sub(t1))
 })
-// handle not match, default only response 404
-root.NotFound(func (ctx *Context) {
-	ctx.WriteHeader(404)
-})
-// handle static files
-root.Static("staic", "http_static_root_dir", true)
-// "github.com/login" and "github.com/qq51529210"
+// Example, "github.com/login" and "github.com/qq51529210".
+// Static priority is higher.
 root.GET("/login", handleLogin)
 root.GET("/?", handleUser)
 // import "handler/foo"
@@ -31,14 +34,16 @@ server.Serve()
 ```go
 // foo package
 func Init(r router.Router) {
+    // Before Intercept will not be intercepted.
+    // But still intercepted by global handler.
     r.GET("", list)
     r.GET("?", get)
-    r.Intercept(global)
-    // global + add
+    r.Intercept(parseForm)
+    // Call parseForm and add
     r.POST("", add)
 }
 
-func global(ctx *router.Context) {
+func parseForm(ctx *router.Context) {
 
 }
 
@@ -53,10 +58,14 @@ func get(ctx *router.Context) {
 func add(ctx *router.Context) {
 
 }
-// 
-server := web.NewServer(":80", root)
-server.Serve()
+// Or your server.
+web.NewServer(":80", root).Serve()
 ```
+
+## Call chain priority
+
+- root intercept > [sub intercept] > route handle
+- root intercept > root notfound
 
 ## Benchmark
 
