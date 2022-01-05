@@ -55,17 +55,25 @@ func (c *Context) BearerToken() string {
 }
 
 // Set Content-Type and statusCode, convert data to JSON and write to body.
-func (c *Context) WriteJSON(statusCode int, value interface{}) error {
+func (c *Context) JSON(statusCode int, value interface{}) error {
 	c.ResponseWriter.WriteHeader(statusCode)
-	c.ResponseWriter.Header().Set("Content-Type", ContentTypeJSON)
+	c.ResponseWriter.Header().Add("Content-Type", ContentTypeJSON)
 	enc := json.NewEncoder(c.ResponseWriter)
 	return enc.Encode(value)
 }
 
-// Set Content-Type and statusCode, write text to body.
-func (c *Context) WriteHTML(statusCode int, text string) error {
+// Set Content-Type and statusCode, data is JSON format.
+func (c *Context) JSONBytes(statusCode int, data []byte) error {
 	c.ResponseWriter.WriteHeader(statusCode)
-	c.ResponseWriter.Header().Set("Content-Type", ContentTypeHTML)
+	c.ResponseWriter.Header().Add("Content-Type", ContentTypeJSON)
+	_, err := c.ResponseWriter.Write(data)
+	return err
+}
+
+// Set Content-Type and statusCode, write text to body.
+func (c *Context) HTML(statusCode int, text string) error {
+	c.ResponseWriter.WriteHeader(statusCode)
+	c.ResponseWriter.Header().Add("Content-Type", ContentTypeHTML)
 	_, err := io.WriteString(c.ResponseWriter, text)
 	return err
 }
