@@ -140,12 +140,14 @@ func (r *route) addStatic(routePath string) *route {
 		child.path = r.path[len(routePath):]
 		child.staticChild = r.staticChild
 		child.paramChild = r.paramChild
+		child.anyChild = r.anyChild
 		//
 		r.handleFunc = nil
 		r.path = routePath
 		r.staticChild = make([]*route, 1)
 		r.staticChild[0] = child
 		r.paramChild = nil
+		r.anyChild = nil
 		return child
 	}
 	// case 3, r.path="/ab", routePath="/abc", diff1="", diff2="c".
@@ -165,12 +167,12 @@ func (r *route) addStatic(routePath string) *route {
 	child1.path = diff1
 	child1.staticChild = r.staticChild
 	child1.paramChild = r.paramChild
+	child1.anyChild = r.anyChild
 	//
 	child2 := new(route)
 	child2.handleFunc = nil
 	child2.path = diff2
 	child2.staticChild = make([]*route, 0)
-	child2.paramChild = nil
 	//
 	r.handleFunc = nil
 	r.path = r.path[:len(r.path)-len(diff1)]
@@ -178,5 +180,6 @@ func (r *route) addStatic(routePath string) *route {
 	r.staticChild[0] = child1
 	r.staticChild[1] = child2
 	r.paramChild = nil
+	r.anyChild = nil
 	return child2
 }
