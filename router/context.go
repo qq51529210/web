@@ -31,12 +31,20 @@ type Context struct {
 	handleIdx  int
 }
 
-func (ctx *Context) Next() {
-	if len(ctx.handleFunc) > ctx.handleIdx {
-		f := ctx.handleFunc[ctx.handleIdx]
+func (ctx *Context) handle() {
+	for ctx.handleIdx < len(ctx.handleFunc) {
+		ctx.handleFunc[ctx.handleIdx](ctx)
 		ctx.handleIdx++
-		f(ctx)
 	}
+}
+
+func (ctx *Context) Next() {
+	ctx.handleIdx++
+	ctx.handle()
+}
+
+func (ctx *Context) Abort() {
+	ctx.handleIdx = len(ctx.handleFunc)
 }
 
 // Return header["Authorization"] Bearer token.

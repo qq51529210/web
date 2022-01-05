@@ -59,7 +59,6 @@ func Test_Router(t *testing.T) {
 	g1, g2 := 0, 0
 	r.Intercept(func(ctx *Context) {
 		g1++
-		ctx.Next()
 	})
 	// notfound
 	r.NotFound(func(ctx *Context) {
@@ -81,7 +80,6 @@ func Test_Router(t *testing.T) {
 	})
 	s.Intercept(func(ctx *Context) {
 		g2++
-		ctx.Next()
 	})
 	s.GET("?", func(ctx *Context) {
 		io.WriteString(ctx.ResponseWriter, "get foo "+ctx.Param[0])

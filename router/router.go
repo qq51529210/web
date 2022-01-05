@@ -227,7 +227,7 @@ func (r *rootRouter) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	} else {
 		ctx.handleFunc = route.handleFunc
 	}
-	ctx.Next()
+	ctx.handle()
 	r.ctx.Put(ctx)
 }
 
