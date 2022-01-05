@@ -199,7 +199,7 @@ func (r *rootRouter) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	ctx := r.ctx.Get().(*Context)
 	ctx.Request = req
 	ctx.ResponseWriter = res
-	ctx.Data = nil
+	ctx.TempData = nil
 	ctx.handleIdx = 0
 	//
 	var route *route
@@ -255,8 +255,7 @@ func (r *rootRouter) Static(routePath, file string, cache int64) {
 			}
 			r.GET(routePath, h.Handle)
 		} else {
-			h := &FileHandler{file: file}
-			r.GET(routePath, h.Handle)
+			r.GET(routePath, FileHandler(file).Handle)
 		}
 	} else {
 		// Is a dir

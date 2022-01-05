@@ -17,7 +17,7 @@ root.NotFound(func (ctx *Context) {
 // Global handler
 root.Intercept(func (ctx *Context) {
     t := time.Now()
-    ctx.Next()
+    ctx.Handle()
     fmt.Println(time.Now().Sub(t1))
 })
 // Example, "github.com/login" and "github.com/qq51529210".

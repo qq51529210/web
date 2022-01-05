@@ -24,7 +24,7 @@ type Context struct {
 	*http.Request
 	http.ResponseWriter
 	Param      []string    // Dynamic route values, in the order of registration.
-	Data       interface{} // Keep user data duraing the call chain.
+	TempData   interface{} // Keep user data duraing the call chain.
 	handleFunc []HandleFunc
 	handleIdx  int
 }
@@ -36,11 +36,17 @@ func (ctx *Context) handle() {
 	}
 }
 
-func (ctx *Context) Next() {
+// Call next handler and run in current function.
+// Example: chains: f1->f2->f3->f4 run in ServeHTTP function.
+// Call in f1, f2->f3->f4 run in f1
+func (ctx *Context) Handle() {
 	ctx.handleIdx++
 	ctx.handle()
 }
 
+// Abort handler chains.
+// Example: chains: f1->f2->f3.
+// Call Abort in f1, f2->f3 will not be called.
 func (ctx *Context) Abort() {
 	ctx.handleIdx = len(ctx.handleFunc)
 }

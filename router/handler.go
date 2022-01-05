@@ -47,24 +47,10 @@ const (
 	deflateCompress
 )
 
-type FileHandler struct {
-	file string
-}
+type FileHandler string
 
-func (h *FileHandler) Handle(ctx *Context) {
-	http.ServeFile(ctx.ResponseWriter, ctx.Request, h.file)
-	ctx.Next()
-}
-
-func NewFileHandler(file string) (*FileHandler, error) {
-	fileInfo, err := os.Stat(file)
-	if err != nil {
-		return nil, err
-	}
-	if fileInfo.IsDir() {
-		return nil, fmt.Errorf("%s is a directory", file)
-	}
-	return &FileHandler{file: file}, nil
+func (h FileHandler) Handle(ctx *Context) {
+	http.ServeFile(ctx.ResponseWriter, ctx.Request, string(h))
 }
 
 type dataSeeker struct {
@@ -99,11 +85,6 @@ func (s *dataSeeker) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-func (s *dataSeeker) Write(b []byte) (int, error) {
-	s.b = append(s.b, b...)
-	return len(b), nil
-}
-
 type CacheHandler struct {
 	contentType    string
 	modTime        time.Time
@@ -119,15 +100,12 @@ func (h *CacheHandler) Handle(ctx *Context) {
 		switch s {
 		case "*", "gzip":
 			h.serveContent(ctx, gzipCompress)
-			ctx.Next()
 			return
 		case "zlib":
 			h.serveContent(ctx, zlibCompress)
-			ctx.Next()
 			return
 		case "deflate":
 			h.serveContent(ctx, deflateCompress)
-			ctx.Next()
 			return
 		default:
 			continue
@@ -135,7 +113,6 @@ func (h *CacheHandler) Handle(ctx *Context) {
 	}
 	// Handler does not has client compressions.
 	http.ServeContent(ctx.ResponseWriter, ctx.Request, "", h.modTime, &dataSeeker{b: h.data})
-	ctx.Next()
 }
 
 func (h *CacheHandler) serveContent(ctx *Context, n int) {
