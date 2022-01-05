@@ -5,13 +5,16 @@ import (
 	"strings"
 )
 
-const paramChar = '?'
+const holderChar = "?"
+const anyChar = "*"
+const paramChars = holderChar + anyChar
 
 type route struct {
 	handleFunc  []HandleFunc
 	path        string
 	staticChild []*route
 	paramChild  *route
+	anyChild    *route
 }
 
 func (r *route) Match(ctx *Context) *route {
@@ -55,25 +58,28 @@ Loop:
 			route = route.paramChild
 			continue Loop
 		}
+		if route.anyChild != nil {
+			ctx.Param = append(ctx.Param, _path)
+			return route.anyChild
+		}
 		return nil
 	}
 }
 
 func (r *route) Add(routePath string, handle ...HandleFunc) {
-	routePath = path.Clean(path.Join("/", routePath))
-	_routePath := routePath
+	_routePath := path.Clean(path.Join("/", routePath))
 	//
 	var routePaths []string
 	for _routePath != "" {
-		i := strings.IndexByte(_routePath, paramChar)
+		i := strings.IndexAny(_routePath, paramChars)
 		if i < 0 {
 			routePaths = append(routePaths, _routePath)
 			break
 		}
-		if _routePath[:i] != "" {
+		if i != 0 && _routePath[:i] != "" {
 			routePaths = append(routePaths, _routePath[:i])
 		}
-		routePaths = append(routePaths, string(paramChar))
+		routePaths = append(routePaths, _routePath[i:i+1])
 		_routePath = strings.TrimLeftFunc(_routePath[i:], func(r rune) bool { return r != '/' })
 		if _routePath == "" {
 			break
@@ -85,9 +91,20 @@ func (r *route) Add(routePath string, handle ...HandleFunc) {
 	current := r
 	for _, p := range routePaths {
 		//
-		if p[0] == paramChar {
-			current = current.addParam(p)
-		} else {
+		switch p {
+		case holderChar:
+			if current.paramChild == nil {
+				current.paramChild = new(route)
+				current.paramChild.path = p
+			}
+			current = current.paramChild
+		case anyChar:
+			if current.anyChild == nil {
+				current.anyChild = new(route)
+				current.anyChild.path = p
+			}
+			current = current.anyChild
+		default:
 			current = current.addStatic(p)
 		}
 	}
@@ -162,12 +179,4 @@ func (r *route) addStatic(routePath string) *route {
 	r.staticChild[1] = child2
 	r.paramChild = nil
 	return child2
-}
-
-func (r *route) addParam(routePath string) *route {
-	if r.paramChild == nil {
-		r.paramChild = new(route)
-		r.paramChild.path = routePath
-	}
-	return r.paramChild
 }

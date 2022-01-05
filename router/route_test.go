@@ -45,12 +45,19 @@ func Test_Route_Add_Match(t *testing.T) {
 	r.Add("/b")
 	c.Request.URL.Path = "/b"
 	test_Fail(t, r.Match(c) == nil)
+	c.Request.URL.Path = "/b/"
+	test_Fail(t, r.Match(c) != nil) // noted
 	r.Add("/b/?")
 	c.Request.URL.Path = "/b/1"
 	test_Fail(t, r.Match(c) == nil, len(c.Param) != 1 || c.Param[0] != "1")
+	c.Request.URL.Path = "/b/"
+	test_Fail(t, r.Match(c) == nil) // noted
 	r.Add("/b/b")
 	c.Request.URL.Path = "/b/b"
 	test_Fail(t, r.Match(c) == nil)
+	r.Add("/b/b/*")
+	c.Request.URL.Path = "/b/b/1/2"
+	test_Fail(t, r.Match(c) == nil, len(c.Param) != 1 || c.Param[0] != "1/2")
 	r.Add("/b/?/?/b")
 	c.Request.URL.Path = "/b/1/2/b"
 	test_Fail(t, r.Match(c) == nil, len(c.Param) != 2 || c.Param[0] != "1" || c.Param[1] != "2")

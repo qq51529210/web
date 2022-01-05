@@ -24,40 +24,40 @@ root.Intercept(func (ctx *Context) {
 // Static priority is higher.
 root.GET("/login", handleLogin)
 root.GET("/?", handleUser)
-// import "handler/foo"
-foo.Init(root.SubRouter("/api/foo"))
+// Holder '?' priority is higher, so this will not match.
+root.GET("/*", handleUser)
+// import "handler/file"
+file.Init(root.SubRouter("/api/files"))
 // server
 server := web.NewServer(":80", root)
 server.Serve()
 ```
 
 ```go
-// foo package
+// file package
 func Init(r router.Router) {
     // Before Intercept will not be intercepted.
     // But still intercepted by global handler.
     r.GET("", list)
     r.GET("?", get)
+    r.GET("dir/*", listDir)
     r.Intercept(parseForm)
     // Call parseForm and add
     r.POST("", add)
 }
 
-func parseForm(ctx *router.Context) {
+func parseForm(ctx *router.Context) {}
 
+func list(ctx *router.Context) {}
+
+func get(ctx *router.Context) {}
+
+func listDir(ctx *router.Context) {
+    // example: ctx.Request.URL.Path = "/api/files/dir/docs/test"
+    // ctx.Param[0] = "docs/test"
 }
 
-func list(ctx *router.Context) {
-
-}
-
-func get(ctx *router.Context) {
-
-}
-
-func add(ctx *router.Context) {
-
-}
+func add(ctx *router.Context) {}
 // Or your server.
 web.NewServer(":80", root).Serve()
 ```
