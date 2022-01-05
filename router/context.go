@@ -1,7 +1,6 @@
 package router
 
 import (
-	"bytes"
 	"encoding/json"
 	"io"
 	"mime"
@@ -24,9 +23,8 @@ var (
 type Context struct {
 	*http.Request
 	http.ResponseWriter
-	Param      []string     // Dynamic route values, in the order of registration.
-	Data       interface{}  // Keep user data in the handler chain.
-	Buff       bytes.Buffer // A cache may be used.
+	Param      []string    // Dynamic route values, in the order of registration.
+	Data       interface{} // Keep user data duraing the call chain.
 	handleFunc []HandleFunc
 	handleIdx  int
 }
