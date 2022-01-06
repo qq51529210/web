@@ -61,6 +61,8 @@ type Router interface {
 	// Handle before other handlers.
 	// Note the order.
 	Intercept(handle ...HandleFunc)
+	// Create a new sub router with routePath.
+	SubRouter(routePath string) Router
 }
 
 type router struct {
@@ -162,11 +164,13 @@ func (r *subRouter) TRACE(routePath string, handle ...HandleFunc) {
 	r.router.TRACE(path.Join(r.path, routePath), append(r.intercept, handle...)...)
 }
 
+func (r *subRouter) SubRouter(routePath string) Router {
+	return &subRouter{path: path.Join(r.path, routePath), router: r.router}
+}
+
 type RootRouter interface {
 	http.Handler
 	Router
-	// Create a new sub router with routePath.
-	SubRouter(routePath string) Router
 	// Handle not match case.
 	// Default handler is http.ResponseWriter.WriteHeader(http.StatusNotFound).
 	NotFound(handle ...HandleFunc)

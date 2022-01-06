@@ -84,6 +84,11 @@ func Test_Router(t *testing.T) {
 	s.GET("?", func(ctx *Context) {
 		io.WriteString(ctx.ResponseWriter, "get foo "+ctx.Param[0])
 	})
+	// /foo/test
+	s = s.SubRouter("/test")
+	s.GET("1", func(ctx *Context) {
+		io.WriteString(ctx.ResponseWriter, "get foo/test/1")
+	})
 	//
 	fis, err := ioutil.ReadDir(".")
 	if err != nil {
@@ -129,6 +134,12 @@ func Test_Router(t *testing.T) {
 	h.Reset()
 	r.ServeHTTP(h, h.req)
 	if h.code == 404 || h.buffer.String() != "get foo qq51529210" || g1 != 4 || g2 != 1 {
+		t.FailNow()
+	}
+	h.req.URL.Path = "/foo/test/1"
+	h.Reset()
+	r.ServeHTTP(h, h.req)
+	if h.code == 404 || h.buffer.String() != "get foo/test/1" {
 		t.FailNow()
 	}
 }

@@ -5,12 +5,11 @@ import (
 	"io"
 	"mime"
 	"net/http"
-	"strings"
 )
 
-const (
-	bearerTokenPrefix = "Bearer "
-)
+// const (
+// 	bearerTokenPrefix = "Bearer "
+// )
 
 var (
 	ContentTypeUTF8 = "charset=utf-8"
@@ -51,14 +50,14 @@ func (ctx *Context) Abort() {
 	ctx.handleIdx = len(ctx.handleFunc)
 }
 
-// Return header["Authorization"] Bearer token.
-func (c *Context) BearerToken() string {
-	token := c.Request.Header.Get("Authorization")
-	if token == "" || !strings.HasPrefix(token, bearerTokenPrefix) {
-		return ""
-	}
-	return token[len(bearerTokenPrefix):]
-}
+// // Return header["Authorization"] Bearer token.
+// func (c *Context) BearerToken() string {
+// 	token := c.Request.Header.Get("Authorization")
+// 	if token == "" || !strings.HasPrefix(token, bearerTokenPrefix) {
+// 		return ""
+// 	}
+// 	return token[len(bearerTokenPrefix):]
+// }
 
 // Set Content-Type and statusCode, convert data to JSON and write to body.
 func (c *Context) JSON(statusCode int, value interface{}) error {
