@@ -18,7 +18,7 @@ func NewServer(addr string, handler http.Handler) Server {
 	return s
 }
 
-func NewTSLServer(addr, certFile, keyFile string, handler http.Handler) (Server, error) {
+func NewTLSServer(addr, certFile, keyFile string, handler http.Handler) (Server, error) {
 	certPEM, err := ioutil.ReadFile(certFile)
 	if err != nil {
 		return nil, err
@@ -35,7 +35,7 @@ func NewTSLServer(addr, certFile, keyFile string, handler http.Handler) (Server,
 	return s, nil
 }
 
-func NewTSLServerWithPair(addr string, certPEM, keyPEM []byte, handler http.Handler) Server {
+func NewTLSServerWithKeyPair(addr string, certPEM, keyPEM []byte, handler http.Handler) Server {
 	s := new(server)
 	s.Server.Addr = addr
 	s.Server.Handler = handler
