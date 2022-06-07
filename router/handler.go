@@ -17,6 +17,7 @@ import (
 	"time"
 )
 
+// HandleFunc 表示 Router 的回调函数
 type HandleFunc func(ctx *Context)
 
 var (
