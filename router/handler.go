@@ -48,8 +48,10 @@ const (
 	deflateCompress
 )
 
+// FileHandler 用于静态文件处理
 type FileHandler string
 
+// Handle 处理
 func (h FileHandler) Handle(ctx *Context) {
 	http.ServeFile(ctx.ResponseWriter, ctx.Request, string(h))
 }
@@ -86,6 +88,7 @@ func (s *dataSeeker) Read(p []byte) (int, error) {
 	return n, nil
 }
 
+// CacheHandler 用于处理缓存数据
 type CacheHandler struct {
 	contentType    string
 	modTime        time.Time
@@ -93,6 +96,7 @@ type CacheHandler struct {
 	compressedData [3][]byte
 }
 
+// Handle 处理
 func (h *CacheHandler) Handle(ctx *Context) {
 	if h.contentType != "" {
 		ctx.ResponseWriter.Header().Add("Content-Type", h.contentType)
@@ -135,14 +139,17 @@ func (h *CacheHandler) serveContent(ctx *Context, n int) {
 	http.ServeContent(ctx.ResponseWriter, ctx.Request, "", h.modTime, &dataSeeker{b: h.data})
 }
 
+// NewCacheHandlerFromFile 从静态文件中创建一个缓存处理器
 func NewCacheHandlerFromFile(file string) (*CacheHandler, error) {
 	fileInfo, err := os.Stat(file)
 	if err != nil {
 		return nil, err
 	}
+	// 是个目录
 	if fileInfo.IsDir() {
 		return nil, fmt.Errorf("%s is a directory", file)
 	}
+	// 读取文件数据
 	data, err := ioutil.ReadFile(file)
 	if err != nil {
 		return nil, err
